@@ -1,2 +1,0 @@
-model_checkpoint_path: "ae_weights_epoch_300"
-all_model_checkpoint_paths: "ae_weights_epoch_300"
