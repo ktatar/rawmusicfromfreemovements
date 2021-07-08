@@ -81,14 +81,14 @@ disc_audio_weights_file = "../results_pytorch/sonification/aae/weights/disc_audi
 # Model Configuration
 
 # Seq2Seq Configuration
-seq2seq_rnn_layer_sizes = [512, 512, 512] # this refers to the hidden size and must be the same for all layers!
+seq2seq_rnn_layer_sizes = [512, 512, 512 ] # this refers to the hidden size and must be the same for all layers!
 final_decoder_activation = "linear"
 
 # Latent Audio Discriminator
 disc_laudio_activation_function = "ELU"
 disc_laudio_dense_layer_sizes = [ 32, 32 ]
 disc_laudio_dropout_prob = 0.0
-disc_laudio_use_batch_normalization = True
+disc_laudio_use_batch_normalization = False
 disc_laudio_use_layer_normalization = False
 
 # Save / Load Preprocesed Mocap and Audio Data
@@ -186,6 +186,33 @@ audio_disc.load_state_dict(torch.load(disc_audio_weights_file))
 audio_encoder.eval()
 audio_decoder.eval()
 audio_disc.eval()
+
+"""
+# debug begin
+
+audio_enc_in = torch.zeros(batch_size, audio_windows_per_pose_window, audio_window_length).to(device)
+audio_enc_in.shape
+audio_enc_in = audio_enc_in.view(-1, audio_window_length)
+audio_enc_in.shape
+audio_enc_out = audio_encoder(audio_enc_in)
+audio_enc_out.shape
+
+audio_dec_in = torch.zeros(batch_size, audio_windows_per_pose_window, audio_latent_dimension).to(device)
+audio_dec_in.shape
+audio_dec_in = audio_dec_in.view(-1, audio_latent_dimension)
+audio_dec_in.shape
+audio_dec_out = audio_decoder(audio_dec_in)
+audio_dec_out.shape
+
+audio_disc_in = torch.zeros(batch_size, audio_windows_per_pose_window, audio_window_length).to(device)
+audio_disc_in.shape
+audio_disc_in = audio_disc_in.view(-1, audio_window_length)
+audio_disc_in.shape
+audio_disc_out = audio_disc(audio_disc_in)
+audio_disc_out.shape
+
+# debug end
+"""
 
 # Save / Load Preprocesed Mocap and Audio Data
 if load_data and data_file_path:
@@ -558,8 +585,8 @@ def laudio_disc_train_step(pose_batch, laudio_batch):
     #print("real_laudio s ", real_laudio.shape)
     
     with torch.no_grad():
-        enc_out, enc_state_h, env_state_c = seq2seq_encoder(pose_batch)
-        dec_out, _, _ = seq2seq_decoder( laudio_batch[:, :-1, :], enc_state_h, env_state_c)
+        enc_out, enc_state_h, enc_state_c = seq2seq_encoder(pose_batch)
+        dec_out, _, _ = seq2seq_decoder( laudio_batch[:, :-1, :], enc_state_h, enc_state_c)
 
     fake_laudio = dec_out
     
@@ -592,7 +619,7 @@ def laudio_disc_train_step(pose_batch, laudio_batch):
 
 def laudio_disc_test_step(pose_batch, laudio_batch):
     
-    #print("laudio_disc_test_step")    
+    #print("laudio_disc_train_step")    
     
     #print("pose_batch s ", pose_batch.shape)
     #print("laudio_batch s ", laudio_batch.shape)
@@ -602,116 +629,32 @@ def laudio_disc_test_step(pose_batch, laudio_batch):
     #print("real_laudio s ", real_laudio.shape)
     
     with torch.no_grad():
-        enc_out, enc_state_h, env_state_c = seq2seq_encoder(pose_batch)
-        dec_out, _, _ = seq2seq_decoder( laudio_batch[:, :-1, :], enc_state_h, env_state_c)
+        enc_out, enc_state_h, enc_state_c = seq2seq_encoder(pose_batch)
+        dec_out, _, _ = seq2seq_decoder( laudio_batch[:, :-1, :], enc_state_h, enc_state_c)
 
         fake_laudio = dec_out
     
         #print("real_laudio s ", real_laudio.shape)
         #print("fake_laudio s ", fake_laudio.shape)
     
-        real_laudio = torch.reshape(real_laudio, (-1, audio_latent_dimension))
-        fake_laudio = torch.reshape(fake_laudio, (-1, audio_latent_dimension))
-    
-        #print("real_laudio2 s ", real_laudio.shape)
-        #print("fake_laudio2 s ", fake_laudio.shape)
-    
-        laudio_disc_real_output =  disc_laudio(real_laudio)
-        laudio_disc_fake_output =  disc_laudio(fake_laudio)
+        laudio_disc_real_output =  disc_laudio(torch.reshape(real_laudio, (-1, audio_latent_dimension)))
+        laudio_disc_fake_output =  disc_laudio(torch.reshape(fake_laudio, (-1, audio_latent_dimension)))
     
         #print("laudio_disc_real_output s ", laudio_disc_real_output.shape)
         #print("laudio_disc_fake_output s ", laudio_disc_fake_output.shape)
     
-        torch.reshape(laudio_disc_real_output, (-1, audio_windows_per_pose_window, 1))
-        torch.reshape(laudio_disc_fake_output, (-1, audio_windows_per_pose_window, 1))
+        #torch.reshape(laudio_disc_real_output, (-1, audio_windows_per_pose_window, 1))
+        #torch.reshape(laudio_disc_fake_output, (-1, audio_windows_per_pose_window, 1))
+    
+        #laudio_disc_real_output.view(-1, audio_windows_per_pose_window, 1)
+        #laudio_disc_fake_output.view(-1, audio_windows_per_pose_window, 1)
     
         #print("laudio_disc_real_output2 s ", laudio_disc_real_output.shape)
         #print("laudio_disc_fake_output2 s ", laudio_disc_fake_output.shape)
 
-    _loss = disc_loss(laudio_disc_real_output, laudio_disc_fake_output)
+        _loss = disc_loss(laudio_disc_real_output, laudio_disc_fake_output)
     
     return _loss
-
-"""
-def laudio_encoder_train_step(pose_batch, audio_batch, laudio_batch):
-    
-    #print("laudio_encoder_train_step")
-    
-    real_laudio = laudio_batch
-    real_audio = audio_batch
-    
-    #print("real_laudio s ", real_laudio.shape)
-    #print("real_audio s ", real_audio.shape)
-        
-    enc_out, enc_state_h, enc_state_c = seq2seq_encoder(pose_batch)
-    
-    #print("enc_out s ", enc_out.shape)
-    #print("enc_state_h s ", enc_state_h.shape)
-    #print("enc_state_c s ", enc_state_c.shape)
-    
-    dec_out, dec_state_h, dec_state_c = seq2seq_decoder(laudio_batch[:,:-1,:], enc_state_h, enc_state_c)
-    
-    #print("dec_out s ", dec_out.shape)
-    #print("dec_state_h s ", dec_state_h.shape)
-    #print("dec_state_c s ", dec_state_c.shape)   
-    
-    pred_laudio = dec_out
-    
-    #print("pred_laudio s ", pred_laudio.shape) 
-    
-    pred_laudio = pred_laudio.view(-1, audio_latent_dimension )
-    
-    #print("pred_laudio2 s ", pred_laudio.shape) 
-    
-    # laudio disc inference
-    laudio_disc_fake_output = disc_laudio(pred_laudio)
-    
-    #print("laudio_disc_fake_output s ", laudio_disc_fake_output.shape) 
-    
-    pred_audio = audio_decoder(pred_laudio)
-    
-    #print("pred_audio s ", pred_audio.shape) 
-
-    # audio disc inference
-    audio_disc_fake_output = audio_disc(pred_audio)
-        
-    #print("audio_disc_fake_output s ", audio_disc_fake_output.shape) 
-    
-    pred_laudio = pred_laudio.view(-1, audio_windows_per_pose_window, audio_latent_dimension )
-    
-    #print("pred_laudio3 s ", pred_laudio.shape) 
-    
-    pred_audio = pred_audio.view(-1, audio_windows_per_pose_window, audio_window_length )
-    
-    #print("pred_audio2 s ", pred_audio.shape) 
-
-    _laudio_rec_loss = rec_loss(laudio_batch[:, 1:, :], pred_laudio)
-    _audio_rec_loss = rec_loss(audio_batch[:, 1:, :], pred_audio)
-    _laudio_disc_loss = disc_gen_loss(laudio_disc_fake_output)
-    _audio_disc_loss = disc_gen_loss(audio_disc_fake_output)
-    _laudio_l2_loss = l2_loss(pred_laudio)
-    _audio_l2_loss = l2_loss(pred_audio)
-    _state_l2_loss = l2_loss(torch.cat((enc_state_h, enc_state_c), 0))
-                
-    _loss = 0.0
-    #_loss += _laudio_rec_loss * laudio_rec_loss_scale
-    #_loss += _audio_rec_loss * audio_rec_loss_scale
-    #_loss += _laudio_disc_loss * laudio_disc_loss_scale
-    #_loss += _audio_disc_loss * audio_disc_loss_scale
-    #_loss += _laudio_l2_loss * laudio_l2_loss_scale
-    #_loss += _audio_l2_loss * audio_l2_loss_scale
-    #_loss += _state_l2_loss * state_l2_loss_scale
-
-    #_loss += _laudio_rec_loss
-    #_loss += _audio_rec_loss
-    _loss += _laudio_disc_loss
-
-    seq2seq_optimizer.zero_grad()
-    _loss.backward()
-    seq2seq_optimizer.step()
-    
-    return _loss, _laudio_rec_loss, _audio_rec_loss, _laudio_disc_loss, _audio_disc_loss, _laudio_l2_loss, _audio_l2_loss, _state_l2_loss
-"""
 
 def laudio_encoder_train_step(pose_batch, audio_batch, laudio_batch):
     
@@ -796,14 +739,14 @@ def laudio_encoder_train_step(pose_batch, audio_batch, laudio_batch):
 
 
 def laudio_encoder_test_step(pose_batch, audio_batch, laudio_batch):
-    #print("laudio_encoder_test_step")
+    #print("laudio_encoder_train_step")
     
     real_laudio = laudio_batch
     real_audio = audio_batch
     
     #print("real_laudio s ", real_laudio.shape)
     #print("real_audio s ", real_audio.shape)
-        
+    
     with torch.no_grad():
         enc_out, enc_state_h, enc_state_c = seq2seq_encoder(pose_batch)
     
@@ -820,43 +763,45 @@ def laudio_encoder_test_step(pose_batch, audio_batch, laudio_batch):
         pred_laudio = dec_out
     
         #print("pred_laudio s ", pred_laudio.shape) 
+        #print("real laudio s ", laudio_batch[:, 1:, :].shape)
     
-        pred_laudio = pred_laudio.view(-1, audio_latent_dimension )
+        #pred_laudio = pred_laudio.view(-1, audio_latent_dimension )
     
         #print("pred_laudio2 s ", pred_laudio.shape) 
     
         # laudio disc inference
-        laudio_disc_fake_output = disc_laudio(pred_laudio)
+        # laudio_disc_fake_output = disc_laudio(pred_laudio)
+    
+        laudio_disc_fake_output = disc_laudio(torch.reshape(pred_laudio,(-1, audio_latent_dimension)))
     
         #print("laudio_disc_fake_output s ", laudio_disc_fake_output.shape) 
-    
-        pred_audio = audio_decoder(pred_laudio)
+        
+        pred_audio = audio_decoder(torch.reshape(pred_laudio, (-1, audio_latent_dimension)))
     
         #print("pred_audio s ", pred_audio.shape) 
+        #print("real_audio s ", audio_batch[:, 1:, :].shape) 
 
         # audio disc inference
         audio_disc_fake_output = audio_disc(pred_audio)
         
         #print("audio_disc_fake_output s ", audio_disc_fake_output.shape) 
     
-        """
-        pred_laudio = pred_laudio.view(-1, audio_windows_per_pose_window, audio_latent_dimension )
-    
-        print("pred_laudio3 s ", pred_laudio.shape) 
-    
-        pred_audio = pred_audio.view(-1, audio_windows_per_pose_window, audio_window_length )
-    
-        print("pred_audio2 s ", pred_audio.shape) 
-        """
+        #pred_laudio = pred_laudio.view(-1, audio_windows_per_pose_window, audio_latent_dimension )
         
+        #print("pred_laudio3 s ", pred_laudio.shape) 
+        
+        #pred_audio = pred_audio.view(-1, audio_windows_per_pose_window, audio_window_length )
+        
+        #print("pred_audio2 s ", pred_audio.shape) 
+    
         _laudio_rec_loss = rec_loss(laudio_batch[:, 1:, :], pred_laudio)
-        _audio_rec_loss = rec_loss(audio_batch[:, 1:, :], pred_audio)
+        _audio_rec_loss = rec_loss(audio_batch[:, 1:, :], torch.reshape(pred_audio,(-1, audio_windows_per_pose_window, audio_window_length)))
         _laudio_disc_loss = disc_gen_loss(laudio_disc_fake_output)
         _audio_disc_loss = disc_gen_loss(audio_disc_fake_output)
         _laudio_l2_loss = l2_loss(pred_laudio)
         _audio_l2_loss = l2_loss(pred_audio)
         _state_l2_loss = l2_loss(torch.cat((enc_state_h, enc_state_c), 0))
-                
+    
         _loss = 0.0
         _loss += _laudio_rec_loss * laudio_rec_loss_scale
         _loss += _audio_rec_loss * audio_rec_loss_scale
@@ -1048,8 +993,6 @@ def train(train_dataset, test_dataset, epochs):
             
             debug_loss_per_epoch.append(_debug_loss)
             
-            
-            
         train_loss_per_epoch = np.mean(np.array(train_loss_per_epoch))
         train_laudio_rec_loss_per_epoch = np.mean(np.array(train_laudio_rec_loss_per_epoch))
         train_audio_rec_loss_per_epoch = np.mean(np.array(train_audio_rec_loss_per_epoch))
@@ -1063,7 +1006,6 @@ def train(train_dataset, test_dataset, epochs):
         
         print("debug_loss_per_epoch ", debug_loss_per_epoch)
         
-        """
         test_loss_per_epoch = []
         test_laudio_rec_loss_per_epoch = []
         test_audio_rec_loss_per_epoch = []
@@ -1125,16 +1067,6 @@ def train(train_dataset, test_dataset, epochs):
         loss_history["test laudio l2 loss"].append(test_laudio_l2_loss_per_epoch)
         loss_history["test audio l2 loss"].append(test_audio_l2_loss_per_epoch)
         loss_history["test state l2 loss"].append(test_state_l2_loss_per_epoch)
-        """
-        
-        test_loss_per_epoch = 0.0
-        test_laudio_rec_loss_per_epoch = 0.0
-        test_audio_rec_loss_per_epoch = 0.0
-        test_laudio_disc_loss_per_epoch = 0.0
-        test_audio_disc_loss_per_epoch = 0.0
-        test_laudio_l2_loss_per_epoch = 0.0
-        test_audio_l2_loss_per_epoch = 0.0
-        test_state_l2_loss_per_epoch = 0.0
         
         print ('epoch {} : train {:01.8f} test {:01.8f} recla {:01.8f} reca {:01.8f} ladisc {:01.8f} adisc {:01.8f} lal2 {:01.4f} al2 {:01.4f} stl2 {:01.4f} time {:01.2f}'.format(epoch + 1, train_loss_per_epoch, test_loss_per_epoch, train_laudio_rec_loss_per_epoch, train_audio_rec_loss_per_epoch, train_laudio_disc_loss_per_epoch, train_audio_disc_loss_per_epoch, train_laudio_l2_loss_per_epoch, train_audio_l2_loss_per_epoch, train_state_l2_loss_per_epoch, time.time()-start))
     
@@ -1158,16 +1090,144 @@ create_pose_animation(18000, 1000, "../results/seq2seq/ref_pose_anim_18000.gif")
 create_pose_animation(22000, 1000, "../results/seq2seq/ref_pose_anim_22000.gif")
 
 create_ref_audio(4000, 1000, "../results_pytorch/sonification/seq2seq/audio/ref_audio_4000.wav")
-create_ref_audio(6000, 1000, "../results/seq2seq/ref_audio_6000.wav")
-create_ref_audio(14000, 1000, "../results/seq2seq/ref_audio_14000.wav")
-create_ref_audio(18000, 1000, "../results/seq2seq/ref_audio_18000.wav")
-create_ref_audio(22000, 1000, "../results/seq2seq/ref_audio_22000.wav")
+create_ref_audio(6000, 1000, "../results_pytorch/sonification/seq2seq/audio/ref_audio_6000.wav")
+create_ref_audio(14000, 1000, "../results_pytorch/sonification/seq2seq/audio/ref_audio_14000.wav")
+create_ref_audio(18000, 1000, "../results_pytorch/sonification/seq2seq/audio/ref_audio_18000.wav")
+create_ref_audio(22000, 1000, "../results_pytorch/sonification/seq2seq/audio/ref_audio_22000.wav")
 
 create_pred_audio(4000, 1000, 4, "../results_pytorch/sonification/seq2seq/audio/pred_audio_4000_epoch_{}.wav".format(epochs))
-create_pred_audio(6000, 1000, 4, "../results/seq2seq/pred_audio_6000_epoch_{}.wav".format(epochs))
-create_pred_audio(14000, 1000, 4, "../results/seq2seq/pred_audio_14000_epoch_{}.wav".format(epochs))
-create_pred_audio(18000, 1000, 4, "../results/seq2seq/pred_audio_18000_epoch_{}.wav".format(epochs))
-create_pred_audio(22000, 1000, 4, "../results/seq2seq/pred_audio_22000_epoch_{}.wav".format(epochs))
+create_pred_audio(6000, 1000, 4, "../results_pytorch/sonification/seq2seq/audio/pred_audio_6000_epoch_{}.wav".format(epochs))
+create_pred_audio(14000, 1000, 4, "../results_pytorch/sonification/seq2seq/audio/pred_audio_14000_epoch_{}.wav".format(epochs))
+create_pred_audio(18000, 1000, 4, "../results_pytorch/sonification/seq2seq/audio/pred_audio_18000_epoch_{}.wav".format(epochs))
+create_pred_audio(22000, 1000, 4, "../results_pytorch/sonification/seq2seq/audio/pred_audio_22000_epoch_{}.wav".format(epochs))
+
+
+# debug begin
+
+# tests that the audio encoder / decoder works properly
+def test_pred_audio(pose_start_frame, pose_frame_count, file_name):
+
+    pose_window_count = pose_frame_count // pose_window_length
+    pose_frame_count = pose_window_count * pose_window_length
+    
+    """
+    print("pose_window_count ", pose_window_count)
+    print("pose_frame_count ", pose_frame_count)
+    """
+ 
+    audio_window_env = np.hanning(audio_window_length)
+    pred_audio_sequence_length = pose_frame_count * audio_samples_per_pose
+    pred_audio_sequence = np.zeros(shape=(pred_audio_sequence_length), dtype=np.float32)
+    
+    audio_start_sample = pose_start_frame * audio_samples_per_pose
+    audio_end_sample = audio_start_sample + pred_audio_sequence_length
+    audio_window_count = (pred_audio_sequence_length - audio_window_length) // audio_window_offset + 1
+    
+    """
+    print("pred_audio_sequence_length ", pred_audio_sequence_length)
+    print("audio_start_sample ", audio_start_sample)
+    print("audio_end_sample ", audio_end_sample)
+    print("audio_window_count ", audio_window_count)
+    """
+    
+    for audio_window_index in range(audio_window_count):
+        audio_window_start_sample = audio_start_sample + audio_window_index * audio_window_offset
+        audio_window_end_sample = audio_window_start_sample + audio_window_length
+        
+        """
+        print("audio_window_index ", audio_window_index)
+        print("audio_window_start_sample ", audio_window_start_sample)
+        print("audio_window_end_sample ", audio_window_end_sample)
+        """
+        
+        audio_window = audio_standardized[audio_window_start_sample:audio_window_end_sample]
+        audio_window = np.expand_dims(audio_window, axis=0)
+        
+        audio_window = torch.from_numpy(audio_window).to(device)
+        
+        with torch.no_grad():
+            laudio_window = audio_encoder(audio_window)
+            pred_audio_window = audio_decoder(laudio_window)
+        
+        pred_audio_window = np.squeeze(pred_audio_window.detach().cpu().numpy())
+        pred_audio_window = pred_audio_window * audio_window_env
+        
+        pred_audio_sequence_start_sample = audio_window_index * audio_window_offset
+        pred_audio_sequence_end_sample = pred_audio_sequence_start_sample + audio_window_length
+        
+        """
+        print("pred_audio_sequence_start_sample ", pred_audio_sequence_start_sample)
+        print("pred_audio_sequence_end_sample ", pred_audio_sequence_end_sample)
+        """
+        
+        pred_audio_sequence[pred_audio_sequence_start_sample:pred_audio_sequence_end_sample] += pred_audio_window
+            
+    if standardize_audio:
+        pred_audio_sequence = audio_mean + pred_audio_sequence * audio_std
+
+    # convert audio float array to audio int16 array with samples between -2**15 amd 2**15
+    pred_audio_int16_sequence = np.clip(pred_audio_sequence, -1.0, 1.0)
+    pred_audio_int16_sequence = pred_audio_int16_sequence * audio_sample_scale
+    pred_audio_int16_sequence = pred_audio_int16_sequence.astype(np.int16)
+
+    audio_write(file_name, audio_save_sample_rate, pred_audio_int16_sequence)
+
+test_pred_audio(2600, 1000, "test_audio_2600.wav")
+
+def create_test2_audio(pose_start_frame, pose_frame_count, pose_window_offset, file_name):
+
+    pose_frame_count = (pose_frame_count // pose_window_length) * pose_window_length
+    pose_window_offset = min(pose_window_offset, pose_window_length)        
+
+    audio_window_env = np.hanning(audio_window_length)
+        
+    pred_audio_sequence_length = pose_frame_count * audio_samples_per_pose
+    pred_audio_sequence = np.zeros(shape=(pred_audio_sequence_length), dtype=np.float32)
+    
+    #print("pred_audio_sequence_length ", pred_audio_sequence_length)
+    
+    for pose_frame in range(pose_start_frame, pose_start_frame + pose_frame_count - pose_window_offset, pose_window_offset):
+        #print("pose_frame ", pose_frame)
+        
+        for audio_window_index in range(audio_windows_per_pose_window):
+
+            audio_window_start_sample = pose_frame * audio_samples_per_pose + audio_window_index * audio_window_offset
+            audio_window_end_sample = audio_window_start_sample + audio_window_length
+            audio_window = audio_standardized[audio_window_start_sample:audio_window_end_sample]
+            
+            audio_window = np.expand_dims(audio_window, axis=0)
+            audio_window = torch.from_numpy(audio_window).to(device)
+            
+            with torch.no_grad():
+                laudio_window = audio_encoder(audio_window)
+                pred_audio_window = audio_decoder(laudio_window)
+            
+            pred_audio_window = np.squeeze(pred_audio_window.detach().cpu().numpy())
+
+            pred_audio_window = pred_audio_window * audio_window_env
+
+            pred_audio_sequence_start_sample = (pose_frame - pose_start_frame) * audio_samples_per_pose + audio_window_index * audio_window_offset
+            pred_audio_sequence_end_sample = pred_audio_sequence_start_sample + audio_window_length
+            
+            #print("awss ", pred_audio_sequence_start_sample, " ases ", pred_audio_sequence_end_sample, " asl ", pred_audio_sequence_length)
+
+            #print("pf ", pose_frame, " pfr ", (pose_frame - pose_start_frame) , " awi ", audio_window_index, " awss ", pred_audio_sequence_start_sample, " ases ", pred_audio_sequence_end_sample, " asl ", pred_audio_sequence_length)
+
+            pred_audio_sequence[pred_audio_sequence_start_sample:pred_audio_sequence_end_sample] += pred_audio_window
+            
+    if standardize_audio:
+        pred_audio_sequence = audio_mean + pred_audio_sequence * audio_std
+
+    # convert audio float array to audio int16 array with samples between -2**15 amd 2**15
+    pred_audio_int16_sequence = np.clip(pred_audio_sequence, -1.0, 1.0)
+    pred_audio_int16_sequence = pred_audio_int16_sequence * audio_sample_scale
+    pred_audio_int16_sequence = pred_audio_int16_sequence.astype(np.int16)
+
+    audio_write(file_name, audio_save_sample_rate, pred_audio_int16_sequence)
+
+create_test2_audio(2600, 1000, 4, "test_audio_2600_4.wav")
+
+# debug end
 
 
 

@@ -100,7 +100,7 @@ disc_audio_use_layer_normalization = False
 save_models = True
 save_tscript = True
 save_weights = False
-load_weights = True
+load_weights = False
 disc_prior_model_file = "../results_pytorch/sonification/aae/models/disc_prior"
 disc_audio_model_file = "../results_pytorch/sonification/aae/models/disc_audio"
 ae_encoder_model_file = "../results_pytorch/sonification/aae/models/ae_encoder"
@@ -1431,4 +1431,3 @@ if save_weights:
 
 if save_audio:
     create_epoch_sonifications(epochs)
-
