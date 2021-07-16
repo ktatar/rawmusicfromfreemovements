@@ -81,7 +81,7 @@ disc_audio_weights_file = "../results_pytorch/sonification/aae/weights/disc_audi
 # Model Configuration
 
 # Seq2Seq Configuration
-seq2seq_rnn_layer_sizes = [512, 512, 512 ] # this refers to the hidden size and must be the same for all layers!
+seq2seq_rnn_layer_sizes = [512, 512, 512] # this refers to the hidden size and must be the same for all layers!
 final_decoder_activation = "linear"
 
 # Latent Audio Discriminator
@@ -99,20 +99,20 @@ data_file_path = "../data/mocap_laudio_sonification_data"
 # Save / Load Model Weights
 save_models = False
 save_tscript = False
-load_weights = False
+load_weights = True
 disc_laudio_model_file = "../results_pytorch/sonification/seq2seq/models/disc_laudio" 
 seq2seq_encoder_model_file = "../results_pytorch/sonification/seq2seq/models/seq2seq_encoder" 
 seq2seq_decoder_model_file = "../results_pytorch/sonification/seq2seq/models/seq2seq_decoder" 
 disc_laudio_weights_file = "../results_pytorch/sonification/seq2seq/weights/disc_laudio_weights_epoch_200" 
-seq2seq_encoder_weights_file = "../results_pytorch/sonification/seq2seq/weights/seq2seq_encoder_epoch_200"
-seq2seq_decoder_weights_file = "../results_pytorch/sonification/seq2seq/weights/seq2seq_decoder_epoch_200"
+seq2seq_encoder_weights_file = "../results_pytorch/sonification/seq2seq/weights/seq2seq_encoder_weights_epoch_200"
+seq2seq_decoder_weights_file = "../results_pytorch/sonification/seq2seq/weights/seq2seq_decoder_weights_epoch_200"
 
 # Training Configuration
 pose_sequence_offset = 1
 batch_size = 16
 train_percentage = 0.8 # train / test split
 test_percentage  = 0.2
-epochs = 200
+epochs = 100
 
 laudio_rec_loss_scale = 1.0
 audio_rec_loss_scale = 0.1
@@ -121,8 +121,8 @@ audio_disc_loss_scale = 0.1
 laudio_l2_loss_scale = 0.01 # l2 loss on predicted audio window encodings
 audio_l2_loss_scale = 0.0 # l2 loss on the predicted audio windows
 state_l2_loss_scale = 0.0 # l2 loss on encoder state vectors
-seq2seq_learning_rate = 1e-4
-disc_laudio_learning_rate = 4e-4
+seq2seq_learning_rate = 1e-5
+disc_laudio_learning_rate = 1e-4
 
 # Mocap Visualisation Settings
 save_vis = False
@@ -529,7 +529,7 @@ if save_tscript == True:
     script_module.save("{}.pt".format(seq2seq_decoder_model_file))
 
 if load_weights and seq2seq_encoder_weights_file:
-    seq2seq_decoder.load_state_dict(torch.load(seq2seq_encoder_weights_file))
+    seq2seq_decoder.load_state_dict(torch.load(seq2seq_decoder_weights_file))
 
 # Training
 
@@ -822,8 +822,10 @@ def create_pose_animation(pose_start_frame, pose_frame_count, file_name):
     sequence_excerpt = np.reshape(sequence_excerpt, (-1, joint_count, joint_dim))
     sequence_excerpt_length = sequence_excerpt.shape[0]
     
-    skel_sequence = skeleton.forward_kinematics(np.expand_dims(sequence_excerpt, axis=0), np.zeros((1, sequence_excerpt_length, 3)))
-    skel_sequence = np.squeeze(skel_sequence)
+    sequence_excerpt = torch.tensor(np.expand_dims(sequence_excerpt, axis=0))
+    zero_trajectory = torch.tensor(np.zeros((1, sequence_excerpt_length, 3), dtype=np.float32))
+    skel_sequence = skeleton.forward_kinematics(sequence_excerpt, zero_trajectory)
+    skel_sequence = np.squeeze(skel_sequence.numpy())
     view_min, view_max = utils.get_equal_mix_max_positions(skel_sequence)
     
     skel_images = poseRenderer.create_pose_images(skel_sequence, view_min, view_max, view_ele, view_azi, view_line_width, view_size, view_size)
@@ -1075,19 +1077,19 @@ def train(train_dataset, test_dataset, epochs):
 loss_history = train(train_dataloader, test_dataloader, epochs)
 
 
-utils.save_loss_as_csv(loss_history, "../results/seq2seq/history.csv")
-utils.save_loss_as_image(loss_history, "../results/seq2seq/history.png")
+utils.save_loss_as_csv(loss_history, "../results_pytorch/sonification/seq2seq/training/history.csv")
+utils.save_loss_as_image(loss_history, "../results_pytorch/sonification/seq2seq/training/history.png")
 
 torch.save(disc_laudio.state_dict(), "../results_pytorch/sonification/seq2seq/weights/disc_laudio_weights_epoch_{}".format(epochs))
 torch.save(seq2seq_encoder.state_dict(), "../results_pytorch/sonification/seq2seq/weights/seq2seq_encoder_weights_epoch_{}".format(epochs))
 torch.save(seq2seq_decoder.state_dict(), "../results_pytorch/sonification/seq2seq/weights/seq2seq_decoder_weights_epoch_{}".format(epochs))
 
 
-create_pose_animation(4000, 1000, "../results/seq2seq/ref_pose_anim_4000.gif")
-create_pose_animation(6000, 1000, "../results/seq2seq/ref_pose_anim_6000.gif")
-create_pose_animation(14000, 1000, "../results/seq2seq/ref_pose_anim_14000.gif")
-create_pose_animation(18000, 1000, "../results/seq2seq/ref_pose_anim_18000.gif")
-create_pose_animation(22000, 1000, "../results/seq2seq/ref_pose_anim_22000.gif")
+create_pose_animation(4000, 1000, "../results_pytorch/sonification/seq2seq/anim/ref_pose_anim_4000.gif")
+create_pose_animation(6000, 1000, "../results_pytorch/sonification/seq2seq/anim/ref_pose_anim_6000.gif")
+create_pose_animation(14000, 1000, "../results_pytorch/sonification/seq2seq/anim/ref_pose_anim_14000.gif")
+create_pose_animation(18000, 1000, "../results_pytorch/sonification/seq2seq/anim/ref_pose_anim_18000.gif")
+create_pose_animation(22000, 1000, "../results_pytorch/sonification/seq2seq/anim/ref_pose_anim_22000.gif")
 
 create_ref_audio(4000, 1000, "../results_pytorch/sonification/seq2seq/audio/ref_audio_4000.wav")
 create_ref_audio(6000, 1000, "../results_pytorch/sonification/seq2seq/audio/ref_audio_6000.wav")
@@ -1101,6 +1103,7 @@ create_pred_audio(14000, 1000, 4, "../results_pytorch/sonification/seq2seq/audio
 create_pred_audio(18000, 1000, 4, "../results_pytorch/sonification/seq2seq/audio/pred_audio_18000_epoch_{}.wav".format(epochs))
 create_pred_audio(22000, 1000, 4, "../results_pytorch/sonification/seq2seq/audio/pred_audio_22000_epoch_{}.wav".format(epochs))
 
+epochs = 300
 
 # debug begin
 
