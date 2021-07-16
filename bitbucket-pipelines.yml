@@ -6,3 +6,8 @@ pipelines:
         script:
           - git push --mirror git@github.coventry.ac.uk:ad5041/RawMusicFromFreeMovements.git
           - git push --mirror git@github.com:ktatar/rawmusicfromfreemovements.git
+  gh-pages:
+    - step:
+        script:
+          - git push --mirror git@github.coventry.ac.uk:ad5041/RawMusicFromFreeMovements.git
+          - git push --mirror git@github.com:ktatar/rawmusicfromfreemovements.git
