@@ -9,6 +9,7 @@ Notes on dilated convolutions:
 the model combines dilated convolution with regular convolution.
 It does so my creating branched paths for each convolution step where dilation is greater than 0,
 the branched paths then join again by adding the results of the regular convolution and dilated convolution.
+
 """
 
 # Imports
