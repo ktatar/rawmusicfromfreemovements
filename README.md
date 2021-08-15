@@ -1,6 +1,7 @@
 # Raw Music From Free Movements
 
 Daniel Bisig - Coventry University, UK - [daniel.bisig@zhdk.ch](daniel.bisig@zhdk.ch)
+
 Kıvanç Tatar - Chalmers University of Technology, Sweden - [info@kivanctatar.com](info@kivanctatar.com) 
 
 ![](./content/movement_audio.png "Synchronized Movement and Audio")
